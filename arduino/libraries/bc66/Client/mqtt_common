@@ -1,0 +1,111 @@
+/*
+    This is common part of MQTT classes
+    Do not use directly !!!
+*/
+
+public:
+
+    bool connected() { 
+        return CL.isconnected; 
+    }
+
+    /// init, before connect, not importand
+    void begin(String client_id, String name, String pass) {
+        begin((const char *)client_id.c_str(), (const char *)name.c_str(), (const char *)pass.c_str());
+    }
+
+    /// init, before connect, not importand
+    void begin(const char *client_id, const char *name = NULL, const char *pass = NULL) {
+        CD.clientID.cstring = (char *)client_id;
+        CD.username.cstring = (char *)name;
+        CD.password.cstring = (char *)pass;
+    }
+
+    /// init, before connect, not importand
+    void will(MQTTPacket_willOptions *w) {
+        if (w)
+        {
+            memset(&CD.will, 0, sizeof(MQTTPacket_willOptions));
+            memcpy(&CD.will, w, sizeof(MQTTPacket_willOptions));
+            CD.willFlag = 1;
+        }
+    }
+
+    /// init, before connect, not importand
+    void options(uint16_t command_timeout_ms, uint16_t keepAliveSeconds = 60, bool cleansession = true) {
+        _cmd_timeout = command_timeout_ms;
+        CD.keepAliveInterval = keepAliveSeconds;
+        CD.cleansession = cleansession;
+    }
+
+    bool publish(String topic, String str, QoS qos = QOS0) {
+        return publish((const char *)topic.c_str(), (const char *)str.c_str(), qos);
+    }
+
+    bool publish(const char *topic, const char *str, QoS qos = QOS0) {
+        int res = -1;
+        if (CL.isconnected && topic && str)
+        {
+            MQTTMessage m;
+            memset(&m, 0, sizeof(MQTTMessage));
+            m.payload = (void *)str;
+            m.payloadlen = strlen(str);
+            m.qos = qos;
+            res = os_mqtt_Publish(&CL, topic, &m);
+        }
+        //::printf("[MQTT] MQTTPublish: %d\n", res);
+        return res == 0;
+    }
+
+    bool publish(const char *topic, MQTTMessage *message) {
+        int res = -1;
+        if (CL.isconnected && message && topic)
+            int res = os_mqtt_Publish(&CL, topic, message);
+        //::printf("[MQTT] MQTTPublish: %d\n", res);
+        return res == 0;
+    }
+
+    bool subscribe(String topic, messageHandler onMessage, QoS qos = QOS0) {
+        return subscribe((const char *)topic.c_str(), onMessage, qos);
+    }
+
+    bool subscribe(const char *topic, messageHandler onMessage, QoS qos = QOS0) {
+        int res = -1;
+        if (CL.isconnected && onMessage && topic)
+            res = os_mqtt_Subscribe(&CL, topic, qos, onMessage);
+        //::printf("[MQTT] MQTTSubscribe: %d\n", res);
+        return res == 0;
+    }
+
+    bool unsubscribe(String topic) {
+        return unsubscribe((const char *)topic.c_str());
+    }
+
+    bool unsubscribe(const char *topic) {
+        int res = -1;
+        if (CL.isconnected && topic)
+            res = os_mqtt_Unsubscribe(&CL, topic);
+        //::printf("[MQTT] MQTTSubscribe: %d\n", res);
+        return res == 0;
+    }
+
+    int loop(uint32_t ms = 100) {
+        int res = -1;
+        if (ms < 100)
+            ms = 100;
+        if (CL.isconnected)
+            res = os_mqtt_Yield(&CL, ms);
+        return res;
+    }
+
+private:
+
+    void check_client_id() {
+        if (NULL == CD.clientID.cstring) {
+            char imei[16], id[64];
+            RIL_GetIMEI(imei);
+            snprintf(id, 64, "QUECTEL-BC66-%s", imei);
+            CD.clientID.cstring = id;
+        }
+        //::printf("[MQTT] CLIENT-ID: %s\n", CD.clientID.cstring);
+    }
